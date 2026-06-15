@@ -1,0 +1,6 @@
+{
+  "name": "Mohsen Nsaibia - Calligraphy Gallery",
+  "description": "An interactive bilingual digital gallery and workshop for Tunisian Kufic Calligraphy master Mohsen Nsaibia, featuring a custom Kufic playground and AI-powered spiritual calligraphy interpretation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

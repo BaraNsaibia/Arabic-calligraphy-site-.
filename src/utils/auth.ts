@@ -1,0 +1,235 @@
+import { AuthSession } from "../types";
+
+const API_BASE = import.meta.env.VITE_API_URL || "/api-php";
+const TOKEN_KEY = "gallery_auth_token";
+
+interface StoredUser extends AuthSession {
+  password: string;
+}
+
+const USERS_KEY = "gallery_users";
+const SESSION_KEY = "gallery_session";
+
+function useApi(): boolean {
+  return API_BASE.length > 0;
+}
+
+function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function setToken(token: string | null) {
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_KEY);
+  }
+}
+
+function getLocalUsers(): StoredUser[] {
+  const raw = localStorage.getItem(USERS_KEY);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as StoredUser[];
+  } catch {
+    return [];
+  }
+}
+
+function getLocalSession(): AuthSession | null {
+  const raw = localStorage.getItem(SESSION_KEY);
+  if (!raw) return null;
+  try {
+    const sess = JSON.parse(raw) as AuthSession;
+    if (sess && sess.email) {
+      sess.isAdmin = sess.email.trim().toLowerCase() === "admin@nsaibia.com";
+    }
+    return sess;
+  } catch {
+    return null;
+  }
+}
+
+async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers = new Headers(options.headers);
+  headers.set("Content-Type", "application/json");
+
+  const token = getToken();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+  });
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    const parsedError = (() => {
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
+    })();
+    throw new Error(`API request failed ${response.status}: ${typeof parsedError === "string" ? parsedError : JSON.stringify(parsedError)}`);
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch (error) {
+    throw new Error(`Invalid JSON response from API: ${String(error)}`);
+  }
+}
+
+export async function getSession(): Promise<AuthSession | null> {
+  if (!useApi()) {
+    return getLocalSession();
+  }
+
+  if (!getToken()) {
+    return null;
+  }
+
+  try {
+    const data = await apiRequest<{ ok: boolean; user: AuthSession | null }>("/auth/me.php");
+    if (data.user) {
+      data.user.isAdmin = data.user.email.trim().toLowerCase() === "admin@nsaibia.com";
+    }
+    return data.user;
+  } catch {
+    setToken(null);
+    return null;
+  }
+}
+
+export async function signUp(
+  name: string,
+  email: string,
+  password: string
+): Promise<{ ok: true; user: AuthSession } | { ok: false; error: "email_exists" | "network_error" }> {
+  if (!useApi()) {
+    const users = getLocalUsers();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (users.some((user) => user.email === normalizedEmail)) {
+      return { ok: false, error: "email_exists" };
+    }
+
+    const newUser: StoredUser = {
+      name: name.trim(),
+      email: normalizedEmail,
+      password,
+    };
+
+    localStorage.setItem(USERS_KEY, JSON.stringify([...users, newUser]));
+
+    const session: AuthSession = {
+      name: newUser.name,
+      email: newUser.email,
+      isAdmin: newUser.email.trim().toLowerCase() === "admin@nsaibia.com",
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    return { ok: true, user: session };
+  }
+
+  try {
+    const data = await apiRequest<{
+      ok: boolean;
+      user?: AuthSession;
+      token?: string;
+      error?: string;
+    }>('/auth/register.php', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password }),
+    });
+
+    if (!data.ok || !data.user || !data.token) {
+      return { ok: false, error: data.error === 'email_exists' ? 'email_exists' : 'network_error' };
+    }
+
+    data.user.isAdmin = data.user.email.trim().toLowerCase() === "admin@nsaibia.com";
+    setToken(data.token);
+    return { ok: true, user: data.user };
+  } catch (error) {
+    console.error("signUp error:", error);
+    return { ok: false, error: 'network_error' };
+  }
+}
+
+export async function signIn(
+  email: string,
+  password: string
+): Promise<{ ok: true; user: AuthSession } | { ok: false; error: "invalid" | "network_error" }> {
+  if (!useApi()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = getLocalUsers().find(
+      (entry) => entry.email === normalizedEmail && entry.password === password
+    );
+
+    if (!user) {
+      if (normalizedEmail === "admin@nsaibia.com" && password === "admin") {
+        const adminSession: AuthSession = {
+          name: "Mohsen Nsaibia",
+          email: "admin@nsaibia.com",
+          isAdmin: true,
+        };
+        localStorage.setItem(SESSION_KEY, JSON.stringify(adminSession));
+        return { ok: true, user: adminSession };
+      }
+      return { ok: false, error: "invalid" };
+    }
+
+    const session: AuthSession = {
+      name: user.name,
+      email: user.email,
+      isAdmin: user.email.trim().toLowerCase() === "admin@nsaibia.com",
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    return { ok: true, user: session };
+  }
+
+  try {
+    const data = await apiRequest<{
+      ok: boolean;
+      user?: AuthSession;
+      token?: string;
+      error?: string;
+    }>('/auth/login.php', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!data.ok || !data.user || !data.token) {
+      return { ok: false, error: data.error === 'invalid' ? 'invalid' : 'network_error' };
+    }
+
+    data.user.isAdmin = data.user.email.trim().toLowerCase() === "admin@nsaibia.com";
+    setToken(data.token);
+    return { ok: true, user: data.user };
+  } catch (error) {
+    console.error("signIn error:", error);
+    return { ok: false, error: 'network_error' };
+  }
+}
+
+export async function signOut(): Promise<void> {
+  if (!useApi()) {
+    localStorage.removeItem(SESSION_KEY);
+    return;
+  }
+
+  try {
+    await apiRequest("/auth/logout.php", { method: "POST" });
+  } catch {
+    // Ignore network errors on logout
+  }
+
+  setToken(null);
+}
+
+export function isDatabaseEnabled(): boolean {
+  return useApi();
+}

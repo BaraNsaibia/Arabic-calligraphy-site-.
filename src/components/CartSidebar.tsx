@@ -131,30 +131,24 @@ export default function CartSidebar({
     let orderIdStr = "ORD-" + Math.floor(100000 + Math.random() * 900000);
 
     if (isApiEnabled()) {
-      const result = await createOrder({
-        customerName: shippingName,
-        customerPhone: shippingPhone,
-        customerEmail: shippingEmail,
-        shippingAddress,
-        paymentMethod: finalMethod,
-        paymentReference: finalReference,
-        cart,
-      });
+      try {
+        const result = await createOrder({
+          customerName: shippingName,
+          customerPhone: shippingPhone,
+          customerEmail: shippingEmail,
+          shippingAddress,
+          paymentMethod: finalMethod,
+          paymentReference: finalReference,
+          cart,
+        });
 
-      if (!result.ok) {
-        setOrderError(
-          isRtl
-            ? "حدث خطأ في إنشاء الطلب. يرجى المحاولة مرة أخرى."
-            : "Failed to create order. Please try again."
-        );
-        setCheckoutStep("error");
-        setIsProcessing(false);
-        return;
+        if (result.ok && result.orderId) {
+          orderIdStr = `ORD-${result.orderId}`;
+        }
+        // If API fails, we still proceed with the local order ID — the WhatsApp message serves as the order record
+      } catch (err) {
+        console.warn("API order creation failed, proceeding with local order:", err);
       }
-      if (result.orderId) {
-        orderIdStr = `ORD-${result.orderId}`;
-      }
-
     }
 
     const newOrder: Order = {

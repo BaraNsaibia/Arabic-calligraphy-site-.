@@ -3,8 +3,6 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
-import { spawn } from "child_process";
-import fs from "fs";
 
 dotenv.config();
 
@@ -19,82 +17,6 @@ app.use((req, res, next) => {
   res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   res.setHeader("X-XSS-Protection", "1; mode=block");
   next();
-});
-
-// PHP API Handler for wamp-api
-app.use("/wamp-api", express.json(), express.urlencoded({ extended: true }), (req, res) => {
-  const phpPath = path.join(process.cwd(), "wamp-api");
-  const requestPath = req.path.substring(1); // Remove leading slash
-  const filePath = path.join(phpPath, requestPath);
-  
-  // Check if file exists
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ ok: false, error: "Not found" });
-  }
-
-  // Prepare PHP environment variables that PHP expects for $_SERVER
-  const env = {
-    ...process.env,
-    REQUEST_METHOD: req.method,
-    CONTENT_TYPE: req.get("Content-Type") || "",
-    CONTENT_LENGTH: req.get("Content-Length") || "",
-    QUERY_STRING: new URLSearchParams(req.query as any).toString(),
-    HTTP_AUTHORIZATION: req.get("Authorization") || "",
-    REDIRECT_HTTP_AUTHORIZATION: req.get("Authorization") || "",
-    HTTP_X_GUEST_TOKEN: req.get("X-Guest-Token") || "",
-    REQUEST_URI: req.originalUrl,
-    SCRIPT_NAME: "/wamp-api/" + requestPath,
-    SCRIPT_FILENAME: filePath,
-    PHP_SELF: "/wamp-api/" + requestPath,
-    SERVER_NAME: req.hostname,
-    SERVER_PORT: String(PORT),
-    SERVER_PROTOCOL: "HTTP/1.1",
-  };
-
-  // Execute PHP file with proper HTTP context
-  const php = spawn("php", [filePath], {
-    env,
-    cwd: phpPath,
-  });
-
-  let stdout = "";
-  let stderr = "";
-
-  php.stdout.on("data", (data) => {
-    stdout += data.toString();
-  });
-
-  php.stderr.on("data", (data) => {
-    stderr += data.toString();
-  });
-
-  php.on("close", (code) => {
-    if (code !== 0) {
-      console.error(`PHP execution error (exit code ${code}): ${stderr}`);
-      return res.status(500).json({ ok: false, error: "PHP execution failed", details: stderr });
-    }
-
-    if (stderr) {
-      console.error(`PHP stderr: ${stderr}`);
-    }
-
-    // Try to parse as JSON, otherwise return as text
-    try {
-      const jsonOutput = JSON.parse(stdout);
-      res.json(jsonOutput);
-    } catch {
-      res.setHeader("Content-Type", "text/html");
-      res.send(stdout);
-    }
-  });
-
-  // Send POST data to PHP stdin if present
-  if (req.method === "POST" && (req.body || Object.keys(req.body as any).length > 0)) {
-    php.stdin.write(JSON.stringify(req.body));
-    php.stdin.end();
-  } else {
-    php.stdin.end();
-  }
 });
 
 // Initialize Gemini safely

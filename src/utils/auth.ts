@@ -1,6 +1,6 @@
 import { AuthSession } from "../types";
 
-const API_BASE = import.meta.env.VITE_API_URL || "/api-php";
+const API_BASE = import.meta.env.VITE_WAMP_API_URL || import.meta.env.VITE_API_URL || "";
 const TOKEN_KEY = "gallery_auth_token";
 
 interface StoredUser extends AuthSession {

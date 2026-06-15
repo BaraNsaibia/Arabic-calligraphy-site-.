@@ -65,7 +65,7 @@ export default function TheCraft({ language }: TheCraftProps) {
           <div className="md:col-span-6 relative flex justify-center">
             <div className="relative aspect-[4/5] w-full max-w-md bg-[#000] p-1.5 border border-white/10 rounded-md overflow-hidden group">
               <img
-                src="/src/assets/images/real_wa_jaalna_muttaqin.jpeg"
+                src="/images/real_wa_jaalna_muttaqin.jpeg"
                 alt="Artist workshop craft details"
                 className="w-full h-full object-cover rounded-sm filter brightness-95 opacity-90 transition-all duration-500 group-hover:brightness-100"
                 referrerPolicy="no-referrer"

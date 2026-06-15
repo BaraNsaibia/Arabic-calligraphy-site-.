@@ -27,7 +27,7 @@ export default function Hero({ language, onExploreClick, onBioClick }: HeroProps
           <div className="relative aspect-[4/5] sm:aspect-[16/9] w-full bg-[#030302] overflow-hidden border border-black/50">
             {/* The hot-linked high fidelity generated artist piece */}
             <img
-              src="/src/assets/images/real_calligraphic_architecture.jpeg"
+              src="/images/real_calligraphic_architecture.jpeg"
               alt="Mohsen Nsaibia Masterpiece Calligraphy"
               className="w-full h-full object-cover opacity-90 transition-all duration-1000 group-hover:scale-105 group-hover:opacity-100"
               referrerPolicy="no-referrer"

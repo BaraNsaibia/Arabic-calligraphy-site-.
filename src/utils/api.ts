@@ -1,9 +1,10 @@
 import { CartItem } from "../types";
 
-const API_BASE = import.meta.env.VITE_WAMP_API_URL || import.meta.env.VITE_API_URL || "";
+const isDev = import.meta.env.DEV;
+const API_BASE = import.meta.env.VITE_WAMP_API_URL || import.meta.env.VITE_API_URL || (isDev ? "/api-php" : "/wamp-api");
 
 export function isApiEnabled(): boolean {
-  return API_BASE.length > 0 && !API_BASE.startsWith("/api-php");
+  return true;
 }
 
 async function postJson<T>(path: string, body: unknown, auth = false): Promise<T> {

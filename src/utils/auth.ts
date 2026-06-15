@@ -1,6 +1,7 @@
 import { AuthSession } from "../types";
 
-const API_BASE = import.meta.env.VITE_WAMP_API_URL || import.meta.env.VITE_API_URL || "";
+const isDev = import.meta.env.DEV;
+const API_BASE = import.meta.env.VITE_WAMP_API_URL || import.meta.env.VITE_API_URL || (isDev ? "/api-php" : "/wamp-api");
 const TOKEN_KEY = "gallery_auth_token";
 
 interface StoredUser extends AuthSession {
@@ -11,7 +12,7 @@ const USERS_KEY = "gallery_users";
 const SESSION_KEY = "gallery_session";
 
 function useApi(): boolean {
-  return API_BASE.length > 0;
+  return true;
 }
 
 function getToken(): string | null {

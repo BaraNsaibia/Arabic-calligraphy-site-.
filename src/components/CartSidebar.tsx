@@ -128,9 +128,36 @@ export default function CartSidebar({
     setIsProcessing(true);
     setProcessingStatus(isRtl ? "جاري تسجيل طلبك..." : "Registering your order...");
 
-    let orderIdStr = "ORD-" + Math.floor(100000 + Math.random() * 900000);
+    let orderIdStr = "";
 
-    if (isApiEnabled()) {
+    if (!isApiEnabled()) {
+      setIsProcessing(false);
+      setOrderError("Order API is not enabled.");
+      setCheckoutStep("error");
+      return;
+    }
+
+    const result = await createOrder({
+      customerName: shippingName,
+      customerPhone: shippingPhone,
+      customerEmail: shippingEmail,
+      shippingAddress,
+      paymentMethod: finalMethod,
+      paymentReference: finalReference,
+      cart,
+    });
+
+    if (!result.ok) {
+      setIsProcessing(false);
+      const detail = result.message || result.error || "";
+      setOrderError(`The order was not saved in the database. ${detail}`);
+      setCheckoutStep("error");
+      return;
+    }
+
+    orderIdStr = result.orderNumber || `ORD-${result.orderId}`;
+
+    if (false && isApiEnabled()) {
       try {
         const result = await createOrder({
           customerName: shippingName,

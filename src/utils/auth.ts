@@ -1,6 +1,6 @@
 import { AuthSession } from "../types";
 
-const API_BASE = (import.meta.env.VITE_WAMP_API_URL || "/wamp-api").replace(/\/$/, "");
+const API_BASE = (import.meta.env.VITE_WAMP_API_URL || "http://localhost/nsaibia-api/wamp-api").replace(/\/$/, "");
 const TOKEN_KEY = "gallery_auth_token";
 
 interface StoredUser extends AuthSession {

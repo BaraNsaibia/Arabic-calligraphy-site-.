@@ -1,6 +1,6 @@
 import { CartItem } from "../types";
 
-const API_BASE = (import.meta.env.VITE_WAMP_API_URL || "/wamp-api").replace(/\/$/, "");
+const API_BASE = (import.meta.env.VITE_WAMP_API_URL || "http://localhost/nsaibia-api/wamp-api").replace(/\/$/, "");
 
 export function isApiEnabled(): boolean {
   return true;
@@ -59,8 +59,8 @@ export async function createOrder(input: {
   cart: CartItem[];
   paymentMethod?: string;
   paymentReference?: string;
-}): Promise<{ ok: true; orderId: number } | { ok: false }> {
-  if (!isApiEnabled()) return { ok: false };
+}): Promise<{ ok: true; orderId: number; orderNumber?: string } | { ok: false; error?: string; message?: string }> {
+  if (!isApiEnabled()) return { ok: false, error: "api_disabled" };
 
   const items = input.cart.map((item) => ({
     artworkId: item.artwork.id,
@@ -71,7 +71,7 @@ export async function createOrder(input: {
 
   try {
     const guestToken = localStorage.getItem("gallery_guest_token");
-    const data = await postJson<{ ok: boolean; orderId?: number }>("/orders/create.php", {
+    const data = await postJson<{ ok: boolean; orderId?: number; orderNumber?: string; error?: string; message?: string }>("/orders/create.php", {
       customerName: input.customerName,
       customerPhone: input.customerPhone,
       customerEmail: input.customerEmail,
@@ -83,13 +83,13 @@ export async function createOrder(input: {
     }, true);
 
     if (!data.ok || !data.orderId) {
-      return { ok: false };
+      return { ok: false, error: data.error, message: data.message };
     }
 
-    return { ok: true, orderId: data.orderId };
+    return { ok: true, orderId: data.orderId, orderNumber: data.orderNumber };
   } catch (err) {
     console.error("Order creation error:", err);
-    return { ok: false };
+    return { ok: false, error: "network_error", message: String(err) };
   }
 }
 

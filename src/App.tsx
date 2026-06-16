@@ -24,6 +24,9 @@ export default function App() {
       : "g-" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     localStorage.setItem("gallery_guest_token", newToken);
   }
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("gallery_guest_orders");
+  }
 
   // Primary states
   const [language, setLanguage] = useState<Language>("ar");
@@ -91,20 +94,7 @@ export default function App() {
       getMyOrders().then((res) => {
         if (res.ok && res.orders) {
           setOrders(res.orders);
-          localStorage.setItem("gallery_guest_orders", JSON.stringify(res.orders));
         } else {
-          const raw = localStorage.getItem("gallery_guest_orders");
-          if (raw) {
-            try {
-              const parsed = JSON.parse(raw);
-              if (Array.isArray(parsed)) {
-                setOrders(parsed);
-                return;
-              }
-            } catch (e) {
-              console.error("Error loading guest orders:", e);
-            }
-          }
           setOrders([]);
         }
       });
@@ -169,9 +159,6 @@ export default function App() {
 
       if (updatedAny) {
         setOrders(nextOrders);
-        if (!user) {
-          localStorage.setItem("gallery_guest_orders", JSON.stringify(nextOrders));
-        }
       }
     }, 6000);
 
@@ -192,9 +179,6 @@ export default function App() {
             }
           : ord
       );
-      if (!user) {
-        localStorage.setItem("gallery_guest_orders", JSON.stringify(next));
-      }
       return next;
     });
   };
@@ -334,11 +318,7 @@ export default function App() {
         onClearCart={handleClearCart}
         onOrderPlaced={(newOrder) => {
           setOrders((prev) => {
-            const updated = [newOrder, ...prev];
-            if (!user) {
-              localStorage.setItem("gallery_guest_orders", JSON.stringify(updated));
-            }
-            return updated;
+            return [newOrder, ...prev];
           });
         }}
       />
@@ -351,9 +331,6 @@ export default function App() {
         orders={orders}
         onClearAll={() => {
           setOrders([]);
-          if (!user) {
-            localStorage.removeItem("gallery_guest_orders");
-          }
         }}
       />
 

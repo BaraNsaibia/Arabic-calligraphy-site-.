@@ -1,7 +1,7 @@
 import { CartItem } from "../types";
 
 const isDev = import.meta.env.DEV;
-const API_BASE = import.meta.env.VITE_WAMP_API_URL || import.meta.env.VITE_API_URL || (isDev ? "/api-php" : "/wamp-api");
+const API_BASE = import.meta.env.VITE_WAMP_API_URL || import.meta.env.VITE_API_URL || (isDev ? "http://localhost:8000" : "/wamp-api");
 
 export function isApiEnabled(): boolean {
   return true;

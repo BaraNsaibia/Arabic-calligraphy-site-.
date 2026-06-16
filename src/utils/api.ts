@@ -1,6 +1,10 @@
 import { CartItem } from "../types";
 
-const API_BASE = (import.meta.env.VITE_WAMP_API_URL || "http://localhost/nsaibia-api/wamp-api").replace(/\/$/, "");
+// Auto-detect API base:
+// 1. If VITE_WAMP_API_URL env var is set → use it (explicit override)
+// 2. Otherwise → use relative "/wamp-api" (works on Render and any same-origin deployment)
+// For local WAMP development, set VITE_WAMP_API_URL in .env.local (not .env)
+const API_BASE = (import.meta.env.VITE_WAMP_API_URL || "/wamp-api").replace(/\/$/, "");
 
 export function isApiEnabled(): boolean {
   return true;

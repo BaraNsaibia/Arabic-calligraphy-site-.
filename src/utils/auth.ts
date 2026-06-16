@@ -1,10 +1,43 @@
 import { AuthSession } from "../types";
 
-const API_BASE = (import.meta.env.VITE_WAMP_API_URL || "/wamp-api").replace(/\/$/, "");
+const CONFIGURED_API_BASE = (import.meta.env.VITE_WAMP_API_URL || "/wamp-api").replace(/\/$/, "");
+const RELATIVE_API_BASE = "/wamp-api";
+const API_BASES = CONFIGURED_API_BASE === RELATIVE_API_BASE ? [CONFIGURED_API_BASE] : [CONFIGURED_API_BASE, RELATIVE_API_BASE];
 const TOKEN_KEY = "gallery_auth_token";
 
 interface StoredUser extends AuthSession {
   password: string;
+}
+
+function buildApiUrl(base: string, path: string): string {
+  return `${base}${path}`;
+}
+
+async function requestJson<T>(path: string, options: RequestInit = {}): Promise<T> {
+  let lastError: unknown;
+
+  for (const base of API_BASES) {
+    try {
+      const response = await fetch(buildApiUrl(base, path), options);
+      const text = await response.text();
+
+      if (!response.ok) {
+        try {
+          return JSON.parse(text) as T;
+        } catch {
+          throw new Error(`API request failed ${response.status}`);
+        }
+      }
+
+      return JSON.parse(text) as T;
+    } catch (err) {
+      lastError = err;
+      if (base === RELATIVE_API_BASE) break;
+      continue;
+    }
+  }
+
+  throw new Error(`Network error: ${String(lastError)}`);
 }
 
 const USERS_KEY = "gallery_users";
@@ -59,29 +92,36 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
+  let lastError: unknown;
 
-  const text = await response.text();
+  for (const base of API_BASES) {
+    try {
+      const response = await fetch(buildApiUrl(base, path), {
+        ...options,
+        headers,
+      });
+      const text = await response.text();
 
-  if (!response.ok) {
-    const parsedError = (() => {
-      try {
-        return JSON.parse(text);
-      } catch {
-        return text;
+      if (!response.ok) {
+        const parsedError = (() => {
+          try {
+            return JSON.parse(text);
+          } catch {
+            return text;
+          }
+        })();
+        throw new Error(`API request failed ${response.status}: ${typeof parsedError === "string" ? parsedError : JSON.stringify(parsedError)}`);
       }
-    })();
-    throw new Error(`API request failed ${response.status}: ${typeof parsedError === "string" ? parsedError : JSON.stringify(parsedError)}`);
+
+      return JSON.parse(text) as T;
+    } catch (err) {
+      lastError = err;
+      if (base === RELATIVE_API_BASE) break;
+      continue;
+    }
   }
 
-  try {
-    return JSON.parse(text) as T;
-  } catch (error) {
-    throw new Error(`Invalid JSON response from API: ${String(error)}`);
-  }
+  throw new Error(`Network error: ${String(lastError)}`);
 }
 
 export async function getSession(): Promise<AuthSession | null> {

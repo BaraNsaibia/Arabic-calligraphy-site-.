@@ -1,13 +1,46 @@
 import { CartItem } from "../types";
 
-// Auto-detect API base:
-// 1. If VITE_WAMP_API_URL env var is set → use it (explicit override)
-// 2. Otherwise → use relative "/wamp-api" (works on Render and any same-origin deployment)
-// For local WAMP development, set VITE_WAMP_API_URL in .env.local (not .env)
-const API_BASE = (import.meta.env.VITE_WAMP_API_URL || "/wamp-api").replace(/\/$/, "");
+const CONFIGURED_API_BASE = (import.meta.env.VITE_WAMP_API_URL || "/wamp-api").replace(/\/$/, "");
+const RELATIVE_API_BASE = "/wamp-api";
+const API_BASES = CONFIGURED_API_BASE === RELATIVE_API_BASE ? [CONFIGURED_API_BASE] : [CONFIGURED_API_BASE, RELATIVE_API_BASE];
 
 export function isApiEnabled(): boolean {
   return true;
+}
+
+function buildApiUrl(base: string, path: string): string {
+  return `${base}${path}`;
+}
+
+async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
+  let lastError: unknown;
+
+  for (const base of API_BASES) {
+    try {
+      const response = await fetch(buildApiUrl(base, path), init);
+      const text = await response.text();
+
+      if (!response.ok) {
+        try {
+          return JSON.parse(text) as T;
+        } catch {
+          throw new Error(`API Error: ${response.status}`);
+        }
+      }
+
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        throw new Error(`Invalid JSON response from API`);
+      }
+    } catch (err) {
+      lastError = err;
+      if (base === RELATIVE_API_BASE) break;
+      continue;
+    }
+  }
+
+  throw new Error(`Network error: ${String(lastError)}`);
 }
 
 async function postJson<T>(path: string, body: unknown, auth = false): Promise<T> {
@@ -20,32 +53,11 @@ async function postJson<T>(path: string, body: unknown, auth = false): Promise<T
     }
   }
 
-  try {
-    const response = await fetch(`${API_BASE}${path}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
-
-    const text = await response.text();
-
-    if (!response.ok) {
-      try {
-        const errorData = JSON.parse(text);
-        return errorData as T;
-      } catch {
-        throw new Error(`API Error: ${response.status}`);
-      }
-    }
-
-    try {
-      return JSON.parse(text) as T;
-    } catch {
-      throw new Error(`Invalid JSON response from API`);
-    }
-  } catch (err) {
-    throw new Error(`Network error: ${String(err)}`);
-  }
+  return requestJson<T>(path, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
 }
 
 export async function subscribeNewsletter(email: string, language: "ar" | "en"): Promise<boolean> {
@@ -102,9 +114,10 @@ export async function getOrderDetails(orderId: string | number): Promise<{ ok: b
 
   try {
     const guestToken = localStorage.getItem("gallery_guest_token");
-    const url = guestToken
-      ? `${API_BASE}/orders/index.php?id=${orderId}&guest_token=${encodeURIComponent(guestToken)}`
-      : `${API_BASE}/orders/index.php?id=${orderId}`;
+    const params = new URLSearchParams({ id: String(orderId) });
+    if (guestToken) {
+      params.set("guest_token", guestToken);
+    }
 
     const headers: Record<string, string> = {};
     const token = localStorage.getItem("gallery_auth_token");
@@ -115,10 +128,10 @@ export async function getOrderDetails(orderId: string | number): Promise<{ ok: b
       headers["X-Guest-Token"] = guestToken;
     }
 
-    const response = await fetch(url, { headers });
-    if (!response.ok) return { ok: false };
-    const data = await response.json();
-    return data;
+    return await requestJson<{ ok: boolean; order?: any }>(`/orders/index.php?${params.toString()}`, {
+      method: "GET",
+      headers,
+    });
   } catch (err) {
     console.error("Failed to fetch order details:", err);
     return { ok: false };
@@ -129,13 +142,11 @@ export async function verifyOrderWithWebhook(body: string, from = "+21697816225"
   if (!isApiEnabled()) return { ok: false };
 
   try {
-    const response = await fetch(`${API_BASE}/orders/webhook.php`, {
+    return await requestJson<{ ok: boolean; message?: string; orderNumber?: string }>("/orders/webhook.php", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ body, from }),
     });
-    const data = await response.json();
-    return data;
   } catch (err) {
     console.error("Failed to run webhook verification:", err);
     return { ok: false };
@@ -151,12 +162,10 @@ export async function getAllOrders(): Promise<{ ok: boolean; orders?: any[] }> {
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
-    const response = await fetch(`${API_BASE}/orders/index.php`, {
+    return await requestJson<{ ok: boolean; orders?: any[] }>("/orders/index.php", {
+      method: "GET",
       headers,
     });
-    if (!response.ok) return { ok: false };
-    const data = await response.json();
-    return data;
   } catch (err) {
     console.error("Failed to fetch all orders:", err);
     return { ok: false };
@@ -177,15 +186,13 @@ export async function getMyOrders(): Promise<{ ok: boolean; orders?: any[] }> {
       headers["X-Guest-Token"] = guestToken;
     }
     const url = guestToken
-      ? `${API_BASE}/orders/mine.php?guest_token=${encodeURIComponent(guestToken)}`
-      : `${API_BASE}/orders/mine.php`;
+      ? `/orders/mine.php?guest_token=${encodeURIComponent(guestToken)}`
+      : "/orders/mine.php";
 
-    const response = await fetch(url, {
+    return await requestJson<{ ok: boolean; orders?: any[] }>(url, {
+      method: "GET",
       headers,
     });
-    if (!response.ok) return { ok: false };
-    const data = await response.json();
-    return data;
   } catch (err) {
     console.error("Failed to fetch my orders:", err);
     return { ok: false };

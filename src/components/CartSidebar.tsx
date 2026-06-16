@@ -123,6 +123,10 @@ export default function CartSidebar({
   };
 
   // Submit actual order to API & Local storage
+  const isOrderError = (result: Awaited<ReturnType<typeof createOrder>>): result is { ok: false; error?: string; message?: string } => {
+    return result.ok === false;
+  };
+
   const handlePlaceOrder = async (finalMethod: string, finalReference: string) => {
     setOrderError("");
     setIsProcessing(true);
@@ -147,7 +151,7 @@ export default function CartSidebar({
       cart,
     });
 
-    if (!result.ok) {
+    if (isOrderError(result)) {
       setIsProcessing(false);
       const detail = result.message || result.error || "";
       setOrderError(`The order was not saved in the database. ${detail}`);
@@ -155,28 +159,9 @@ export default function CartSidebar({
       return;
     }
 
-    orderIdStr = result.orderNumber || `ORD-${result.orderId}`;
+    const successResult = result;
+    orderIdStr = successResult.orderNumber || `ORD-${successResult.orderId}`;
 
-    if (false && isApiEnabled()) {
-      try {
-        const result = await createOrder({
-          customerName: shippingName,
-          customerPhone: shippingPhone,
-          customerEmail: shippingEmail,
-          shippingAddress,
-          paymentMethod: finalMethod,
-          paymentReference: finalReference,
-          cart,
-        });
-
-        if (result.ok && result.orderId) {
-          orderIdStr = `ORD-${result.orderId}`;
-        }
-        // If API fails, we still proceed with the local order ID — the WhatsApp message serves as the order record
-      } catch (err) {
-        console.warn("API order creation failed, proceeding with local order:", err);
-      }
-    }
 
     const newOrder: Order = {
       id: orderIdStr,

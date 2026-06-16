@@ -10,6 +10,8 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
+const REMOTE_WAMP_API_URL = (process.env.VITE_WAMP_API_URL || process.env.WAMP_API_URL || "").replace(/\/$/, "");
+const USE_REMOTE_WAMP_API = REMOTE_WAMP_API_URL !== "" && /^(https?:\/\/)/i.test(REMOTE_WAMP_API_URL);
 
 // ── JSON-file database (works on Replit, local, everywhere) ──────────────
 const DB_PATH = path.join(process.cwd(), "data", "db.json");
@@ -102,6 +104,36 @@ app.use((req, res, next) => {
   res.setHeader("X-XSS-Protection", "1; mode=block");
   next();
 });
+
+if (USE_REMOTE_WAMP_API) {
+  app.all("/wamp-api/*", express.raw({ type: "*/*", limit: "5mb" }), async (req, res) => {
+    try {
+      const proxyPath = req.originalUrl.replace(/^\/wamp-api/, "");
+      const targetUrl = `${REMOTE_WAMP_API_URL}${proxyPath}`;
+      const headers = { ...req.headers } as Record<string, string>;
+      delete headers.host;
+
+      const fetchOptions: RequestInit = {
+        method: req.method,
+        headers,
+        body: req.method === "GET" || req.method === "HEAD" ? undefined : req.body,
+        redirect: "manual",
+      };
+
+      const response = await fetch(targetUrl, fetchOptions);
+      res.status(response.status);
+      response.headers.forEach((value, key) => {
+        if (['transfer-encoding', 'content-encoding', 'connection', 'keep-alive'].includes(key.toLowerCase())) return;
+        res.setHeader(key, value);
+      });
+      const body = await response.arrayBuffer();
+      return res.send(Buffer.from(body));
+    } catch (error) {
+      console.error("Remote WAMP API proxy error:", error);
+      return res.status(502).json({ ok: false, error: "proxy_error", message: String(error) });
+    }
+  });
+}
 
 // ── Gemini AI ────────────────────────────────────────────────────────────
 let ai: GoogleGenAI | null = null;

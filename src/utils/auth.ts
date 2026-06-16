@@ -1,8 +1,11 @@
 import { AuthSession } from "../types";
 
-const CONFIGURED_API_BASE = (import.meta.env.VITE_WAMP_API_URL || "/wamp-api").replace(/\/$/, "");
-const RELATIVE_API_BASE = "/wamp-api";
-const API_BASES = CONFIGURED_API_BASE === RELATIVE_API_BASE ? [CONFIGURED_API_BASE] : [CONFIGURED_API_BASE, RELATIVE_API_BASE];
+const DEFAULT_API_BASE = "/wamp-api";
+const CONFIGURED_API_BASE = (import.meta.env.VITE_WAMP_API_URL || DEFAULT_API_BASE).replace(/\/$/, "");
+const isConfiguredAbsolute = /^https?:\/\//i.test(CONFIGURED_API_BASE);
+const API_BASES = isConfiguredAbsolute || CONFIGURED_API_BASE === DEFAULT_API_BASE
+  ? [CONFIGURED_API_BASE]
+  : [CONFIGURED_API_BASE, DEFAULT_API_BASE];
 const TOKEN_KEY = "gallery_auth_token";
 
 interface StoredUser extends AuthSession {
@@ -32,7 +35,7 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
       return JSON.parse(text) as T;
     } catch (err) {
       lastError = err;
-      if (base === RELATIVE_API_BASE) break;
+      if (base === DEFAULT_API_BASE) break;
       continue;
     }
   }
@@ -116,7 +119,7 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
       return JSON.parse(text) as T;
     } catch (err) {
       lastError = err;
-      if (base === RELATIVE_API_BASE) break;
+      if (base === DEFAULT_API_BASE) break;
       continue;
     }
   }

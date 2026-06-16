@@ -1,8 +1,11 @@
 import { CartItem } from "../types";
 
-const CONFIGURED_API_BASE = (import.meta.env.VITE_WAMP_API_URL || "/wamp-api").replace(/\/$/, "");
-const RELATIVE_API_BASE = "/wamp-api";
-const API_BASES = CONFIGURED_API_BASE === RELATIVE_API_BASE ? [CONFIGURED_API_BASE] : [CONFIGURED_API_BASE, RELATIVE_API_BASE];
+const DEFAULT_API_BASE = "/wamp-api";
+const CONFIGURED_API_BASE = (import.meta.env.VITE_WAMP_API_URL || DEFAULT_API_BASE).replace(/\/$/, "");
+const isConfiguredAbsolute = /^https?:\/\//i.test(CONFIGURED_API_BASE);
+const API_BASES = isConfiguredAbsolute || CONFIGURED_API_BASE === DEFAULT_API_BASE
+  ? [CONFIGURED_API_BASE]
+  : [CONFIGURED_API_BASE, DEFAULT_API_BASE];
 
 export function isApiEnabled(): boolean {
   return true;
@@ -35,7 +38,7 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
       }
     } catch (err) {
       lastError = err;
-      if (base === RELATIVE_API_BASE) break;
+      if (base === DEFAULT_API_BASE) break;
       continue;
     }
   }

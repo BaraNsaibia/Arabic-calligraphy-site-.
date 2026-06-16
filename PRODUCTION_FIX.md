@@ -17,6 +17,8 @@ VITE_WAMP_API_URL=https://your-domain.com/wamp-api
 
 Replace `https://your-domain.com/wamp-api` with the actual URL where your PHP API is hosted.
 
+> If your site is deployed as the Node/React app on Render, the default `/wamp-api` path will use the built-in JSON-file API instead of MySQL. Setting `VITE_WAMP_API_URL` to your PHP API host is required for real database persistence.
+
 ### Steps to Fix:
 
 1. **Deploy PHP API Files**: Ensure the `wamp-api` folder is deployed to your PHP server (e.g., cPanel, shared hosting, VPS)

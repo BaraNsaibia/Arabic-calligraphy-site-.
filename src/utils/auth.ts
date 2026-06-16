@@ -1,7 +1,25 @@
 import { AuthSession } from "../types";
 
-const isDev = import.meta.env.DEV;
-const API_BASE = import.meta.env.VITE_WAMP_API_URL || import.meta.env.VITE_API_URL || (isDev ? "http://localhost:8000" : "/wamp-api");
+function getApiBase(): string {
+  const envUrl = import.meta.env.VITE_WAMP_API_URL || import.meta.env.VITE_API_URL || "";
+  const isDev = import.meta.env.DEV;
+
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
+
+    if (!isLocalhost) {
+      if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
+        return envUrl;
+      }
+      return "/wamp-api";
+    }
+  }
+
+  return envUrl || "http://localhost:8000";
+}
+
+const API_BASE = getApiBase();
 const TOKEN_KEY = "gallery_auth_token";
 
 interface StoredUser extends AuthSession {
@@ -159,15 +177,15 @@ export async function signUp(
       if (data.error === 'email_exists') {
         return { ok: false, error: 'email_exists' };
       }
-      return localSignUp();
+      return { ok: false, error: 'network_error' };
     }
 
     data.user.isAdmin = data.user.email.trim().toLowerCase() === "admin@nsaibia.com";
     setToken(data.token);
     return { ok: true, user: data.user };
   } catch (error) {
-    console.warn("signUp API error, falling back to local auth:", error);
-    return localSignUp();
+    console.error("signUp API error:", error);
+    return { ok: false, error: 'network_error' };
   }
 }
 
@@ -183,8 +201,6 @@ export async function signIn(
     );
 
     if (!user) {
-      // Allow the admin email to log in with any password when offline/local fallback is active,
-      // or if password is "admin"
       if (normalizedEmail === "admin@nsaibia.com") {
         const adminSession: AuthSession = {
           name: "Mohsen Nsaibia",
@@ -225,15 +241,15 @@ export async function signIn(
       if (data.error === 'invalid') {
         return { ok: false, error: 'invalid' };
       }
-      return localSignIn();
+      return { ok: false, error: 'network_error' };
     }
 
     data.user.isAdmin = data.user.email.trim().toLowerCase() === "admin@nsaibia.com";
     setToken(data.token);
     return { ok: true, user: data.user };
   } catch (error) {
-    console.warn("signIn API error, falling back to local auth:", error);
-    return localSignIn();
+    console.error("signIn API error:", error);
+    return { ok: false, error: 'network_error' };
   }
 }
 

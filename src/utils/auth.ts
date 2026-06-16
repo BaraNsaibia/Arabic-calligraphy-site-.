@@ -1,25 +1,7 @@
 import { AuthSession } from "../types";
 
-function getApiBase(): string {
-  const envUrl = import.meta.env.VITE_WAMP_API_URL || import.meta.env.VITE_API_URL || "";
-  const isDev = import.meta.env.DEV;
-
-  if (typeof window !== "undefined") {
-    const hostname = window.location.hostname;
-    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
-
-    if (!isLocalhost) {
-      if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
-        return envUrl;
-      }
-      return "/wamp-api";
-    }
-  }
-
-  return envUrl || "http://localhost:8000";
-}
-
-const API_BASE = getApiBase();
+// Always use /wamp-api — the Express server handles these routes directly
+const API_BASE = "/wamp-api";
 const TOKEN_KEY = "gallery_auth_token";
 
 interface StoredUser extends AuthSession {
@@ -182,6 +164,7 @@ export async function signUp(
 
     data.user.isAdmin = data.user.email.trim().toLowerCase() === "admin@nsaibia.com";
     setToken(data.token);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
     return { ok: true, user: data.user };
   } catch (error) {
     console.error("signUp API error:", error);
@@ -246,6 +229,7 @@ export async function signIn(
 
     data.user.isAdmin = data.user.email.trim().toLowerCase() === "admin@nsaibia.com";
     setToken(data.token);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
     return { ok: true, user: data.user };
   } catch (error) {
     console.error("signIn API error:", error);

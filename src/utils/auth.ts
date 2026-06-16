@@ -1,7 +1,6 @@
 import { AuthSession } from "../types";
 
-// Always use /wamp-api — the Express server handles these routes directly
-const API_BASE = "/wamp-api";
+const API_BASE = (import.meta.env.VITE_WAMP_API_URL || "/wamp-api").replace(/\/$/, "");
 const TOKEN_KEY = "gallery_auth_token";
 
 interface StoredUser extends AuthSession {

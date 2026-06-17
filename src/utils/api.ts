@@ -55,11 +55,12 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
       }
     } catch (err) {
       lastError = err;
+      console.error(`Failed request to ${buildApiUrl(base, path)}:`, err);
       continue;
     }
   }
 
-  throw new Error(`Network error: ${String(lastError)}`);
+  throw new Error(`Network error while requesting ${path}: ${String(lastError)}`);
 }
 
 async function postJson<T>(path: string, body: unknown, auth = false): Promise<T> {

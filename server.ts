@@ -11,7 +11,14 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
 const REMOTE_WAMP_API_URL = (process.env.VITE_WAMP_API_URL || process.env.WAMP_API_URL || "").replace(/\/$/, "");
-const USE_REMOTE_WAMP_API = REMOTE_WAMP_API_URL !== "" && /^(https?:\/\/)/i.test(REMOTE_WAMP_API_URL);
+const IS_LOCAL_WAMP_API = /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?$/i.test(REMOTE_WAMP_API_URL);
+const USE_REMOTE_WAMP_API = REMOTE_WAMP_API_URL !== "" && /^(https?:\/\/)/i.test(REMOTE_WAMP_API_URL) && (process.env.NODE_ENV !== "production" || !IS_LOCAL_WAMP_API);
+
+if (REMOTE_WAMP_API_URL && IS_LOCAL_WAMP_API && process.env.NODE_ENV === "production") {
+  console.warn(
+    "VITE_WAMP_API_URL is set to a localhost URL in production. The app will not proxy /wamp-api to localhost in production, and the built-in JSON-file API will be used instead."
+  );
+}
 
 // ── JSON-file database (works on Replit, local, everywhere) ──────────────
 const DB_PATH = path.join(process.cwd(), "data", "db.json");

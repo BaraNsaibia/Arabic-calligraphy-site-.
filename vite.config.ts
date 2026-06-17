@@ -20,6 +20,11 @@ export default defineConfig(() => {
           target: 'http://127.0.0.1:8000',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api-php/, '')
+        },
+        '/wamp-api': {
+          target: process.env.VITE_WAMP_API_URL || 'http://localhost/nsaibia-api/wamp-api',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/wamp-api/, ''),
         }
       }
     },

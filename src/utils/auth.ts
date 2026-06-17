@@ -52,11 +52,12 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
       }
     } catch (err) {
       lastError = err;
+      console.error(`Failed request to ${buildApiUrl(base, path)}:`, err);
       continue;
     }
   }
 
-  throw new Error(`Network error: ${String(lastError)}`);
+  throw new Error(`Network error while requesting ${path}: ${String(lastError)}`);
 }
 
 const USERS_KEY = "gallery_users";
@@ -145,12 +146,12 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
       }
     } catch (err) {
       lastError = err;
-      if (base === DEFAULT_API_BASE) break;
+      console.error(`Failed request to ${buildApiUrl(base, path)}:`, err);
       continue;
     }
   }
 
-  throw new Error(`Network error: ${String(lastError)}`);
+  throw new Error(`Network error while requesting ${path}: ${String(lastError)}`);
 }
 
 export async function getSession(): Promise<AuthSession | null> {

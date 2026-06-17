@@ -105,10 +105,22 @@ function getUserFromToken(db: Database, authHeader?: string): DbUser | null {
 
 // ── Security Headers ─────────────────────────────────────────────────────
 app.use((req, res, next) => {
+  // CORS headers for cross-origin requests
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+  
+  // Security headers
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   res.setHeader("X-XSS-Protection", "1; mode=block");
+  
+  // Handle preflight requests
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  
   next();
 });
 
@@ -161,6 +173,126 @@ app.get("/api/wamp-api-health", async (_req, res) => {
   } catch (err: any) {
     return res.json({ ok: false, status: "unreachable", remoteUrl: REMOTE_WAMP_API_URL, error: String(err) });
   }
+});
+
+// ── Setup/Debug page ─────────────────────────────────────────────────────
+app.get("/setup", (_req, res) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Gallery API Setup & Diagnostics</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 2rem; background: #f5f5f5; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    h1 { color: #333; }
+    .status { padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+    .status.ok { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+    .status.error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+    .test-btn { background: #007bff; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin: 0.5rem 0.5rem 0.5rem 0; }
+    .test-btn:hover { background: #0056b3; }
+    .result { background: #f0f0f0; padding: 1rem; border-radius: 4px; margin: 1rem 0; font-family: monospace; font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; }
+    code { background: #f0f0f0; padding: 0.2rem 0.4rem; border-radius: 2px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 Mohsen Nsaibia Gallery - API Setup</h1>
+    
+    <h2>Server Configuration</h2>
+    <div id="config"></div>
+    
+    <h2>Tests</h2>
+    <button class="test-btn" onclick="testDiagnostic()">📊 Test Server Diagnostic</button>
+    <button class="test-btn" onclick="testHealth()">❤️ Test PHP API Health</button>
+    <button class="test-btn" onclick="testFetch()">📡 Test Order Creation Fetch</button>
+    <button class="test-btn" onclick="testCORS()">🔒 Test CORS Headers</button>
+    
+    <div id="results"></div>
+    
+    <h2>Next Steps</h2>
+    <ol>
+      <li>Ensure <code>VITE_WAMP_API_URL</code> is set on Render to your PHP API host</li>
+      <li>Redeploy the app after setting the environment variable</li>
+      <li>Check browser DevTools Console for fetch errors</li>
+      <li>Verify PHP API CORS headers allow your Render domain</li>
+    </ol>
+  </div>
+  
+  <script>
+    async function addResult(title, promise) {
+      const div = document.getElementById('results');
+      const resultDiv = document.createElement('div');
+      resultDiv.innerHTML = '<strong>' + title + '</strong><div class="result">Loading...</div>';
+      div.appendChild(resultDiv);
+      
+      try {
+        const result = await promise;
+        resultDiv.querySelector('.result').textContent = JSON.stringify(result, null, 2);
+      } catch (err) {
+        resultDiv.querySelector('.result').textContent = 'Error: ' + String(err);
+      }
+    }
+    
+    async function testDiagnostic() {
+      addResult('📊 Server Diagnostic', fetch('/api/diagnostic').then(r => r.json()));
+    }
+    
+    async function testHealth() {
+      addResult('❤️ PHP API Health', fetch('/api/wamp-api-health').then(r => r.json()));
+    }
+    
+    async function testFetch() {
+      addResult('📡 Test Create Order (will fail without valid data, shows CORS/connection)',
+        fetch('/wamp-api/orders/create.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerName: 'Test',
+            customerPhone: '+123456789',
+            customerEmail: 'test@example.com',
+            shippingAddress: 'Test Address',
+            items: [{ artworkId: 'test', quantity: 1, frameType: 'museum_gold', unitPrice: 100 }]
+          })
+        }).then(r => ({ status: r.status, statusText: r.statusText, ...Object.fromEntries(r.headers) }))
+      );
+    }
+    
+    async function testCORS() {
+      const remoteUrl = document.getElementById('config').textContent.includes('Proxying')
+        ? document.getElementById('config').textContent.match(/https?:\\/\\/[^\\s]+/)?.[0]
+        : null;
+      
+      if (!remoteUrl) {
+        addResult('🔒 CORS Test', Promise.reject('No remote API URL configured'));
+        return;
+      }
+      
+      addResult('🔒 CORS Test (OPTIONS to PHP API)',
+        fetch(remoteUrl + '/index.php', { method: 'OPTIONS' })
+          .then(r => ({ 
+            status: r.status, 
+            corsAllowOrigin: r.headers.get('Access-Control-Allow-Origin'),
+            corsMethods: r.headers.get('Access-Control-Allow-Methods'),
+            corsHeaders: r.headers.get('Access-Control-Allow-Headers')
+          }))
+      );
+    }
+    
+    // Load config on page load
+    window.addEventListener('load', async () => {
+      const res = await fetch('/api/diagnostic').then(r => r.json());
+      const configDiv = document.getElementById('config');
+      const msg = res.environment.message || 'Unknown';
+      const status = res.environment.USE_REMOTE_WAMP_API ? 'ok' : 'error';
+      configDiv.innerHTML = '<div class="status ' + status + '">' + msg + '</div>';
+    });
+  </script>
+</body>
+</html>
+  `;
+  res.type("text/html").send(html);
 });
 
 if (USE_REMOTE_WAMP_API) {

@@ -117,6 +117,52 @@ app.get("/runtime-env.js", (_req, res) => {
   res.send(`window.__RUNTIME__ = { VITE_WAMP_API_URL: ${JSON.stringify(REMOTE_WAMP_API_URL)} };`);
 });
 
+// ── Diagnostic endpoint ──────────────────────────────────────────────────
+app.get("/api/diagnostic", (_req, res) => {
+  return res.json({
+    ok: true,
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      REMOTE_WAMP_API_URL,
+      IS_LOCAL_WAMP_API,
+      USE_REMOTE_WAMP_API,
+      message: USE_REMOTE_WAMP_API
+        ? `Proxying /wamp-api/* to ${REMOTE_WAMP_API_URL}`
+        : `Using built-in JSON-file API at /wamp-api/*`
+    }
+  });
+});
+
+// ── Health check ─────────────────────────────────────────────────────────
+app.get("/api/wamp-api-health", async (_req, res) => {
+  if (!USE_REMOTE_WAMP_API || !REMOTE_WAMP_API_URL) {
+    return res.json({ ok: true, status: "using-builtin", message: "Using built-in JSON-file API" });
+  }
+
+  try {
+    const healthUrl = `${REMOTE_WAMP_API_URL}/index.php`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(healthUrl, { method: "GET", signal: controller.signal });
+    clearTimeout(timeout);
+    const text = await response.text();
+    
+    if (!response.ok) {
+      return res.json({ ok: false, status: "api-error", code: response.status, message: `PHP API returned ${response.status}` });
+    }
+
+    try {
+      const data = JSON.parse(text);
+      return res.json({ ok: true, status: "connected", remoteUrl: REMOTE_WAMP_API_URL, phpResponse: data });
+    } catch {
+      return res.json({ ok: false, status: "invalid-json", message: "PHP API returned non-JSON response" });
+    }
+  } catch (err: any) {
+    return res.json({ ok: false, status: "unreachable", remoteUrl: REMOTE_WAMP_API_URL, error: String(err) });
+  }
+});
+
 if (USE_REMOTE_WAMP_API) {
   app.all("/wamp-api/*", express.raw({ type: "*/*", limit: "5mb" }), async (req, res) => {
     try {

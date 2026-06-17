@@ -32,14 +32,18 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
         try {
           return JSON.parse(text) as T;
         } catch {
-          throw new Error(`API Error: ${response.status}`);
+          console.error('API returned non-JSON error response:', text);
+          const snippet = text.slice(0, 2000);
+          throw new Error(`API Error: ${response.status} - Invalid JSON response from API: ${snippet}`);
         }
       }
 
       try {
         return JSON.parse(text) as T;
       } catch {
-        throw new Error(`Invalid JSON response from API`);
+        console.error('API returned invalid JSON:', text);
+        const snippet = text.slice(0, 2000);
+        throw new Error(`Invalid JSON response from API: ${snippet}`);
       }
     } catch (err) {
       lastError = err;

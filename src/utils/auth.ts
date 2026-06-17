@@ -110,17 +110,20 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
       const text = await response.text();
 
       if (!response.ok) {
-        const parsedError = (() => {
-          try {
-            return JSON.parse(text);
-          } catch {
-            return text;
-          }
-        })();
-        throw new Error(`API request failed ${response.status}: ${typeof parsedError === "string" ? parsedError : JSON.stringify(parsedError)}`);
+        let parsedError: unknown = text;
+        try { parsedError = JSON.parse(text); } catch {}
+        console.error('API returned non-OK response:', response.status, parsedError);
+        const snippet = text.slice(0, 2000);
+        throw new Error(`API request failed ${response.status}: ${snippet}`);
       }
 
-      return JSON.parse(text) as T;
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        console.error('API returned invalid JSON:', text);
+        const snippet = text.slice(0, 2000);
+        throw new Error(`Invalid JSON response from API: ${snippet}`);
+      }
     } catch (err) {
       lastError = err;
       if (base === DEFAULT_API_BASE) break;

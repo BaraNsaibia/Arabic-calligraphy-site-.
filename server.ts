@@ -112,6 +112,11 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get("/runtime-env.js", (_req, res) => {
+  res.type("application/javascript");
+  res.send(`window.__RUNTIME__ = { VITE_WAMP_API_URL: ${JSON.stringify(REMOTE_WAMP_API_URL)} };`);
+});
+
 if (USE_REMOTE_WAMP_API) {
   app.all("/wamp-api/*", express.raw({ type: "*/*", limit: "5mb" }), async (req, res) => {
     try {

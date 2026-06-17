@@ -1,7 +1,10 @@
 import { CartItem } from "../types";
 
 const DEFAULT_API_BASE = "/wamp-api";
-const CONFIGURED_API_BASE = (import.meta.env.VITE_WAMP_API_URL || DEFAULT_API_BASE).replace(/\/$/, "");
+const RUNTIME_API_BASE = typeof window !== "undefined" && (window as any).__RUNTIME__?.VITE_WAMP_API_URL
+  ? String((window as any).__RUNTIME__.VITE_WAMP_API_URL)
+  : "";
+const CONFIGURED_API_BASE = (RUNTIME_API_BASE || import.meta.env.VITE_WAMP_API_URL || DEFAULT_API_BASE).replace(/\/$/, "");
 const isConfiguredAbsolute = /^https?:\/\//i.test(CONFIGURED_API_BASE);
 // Prefer calling the local proxy first so the server can proxy requests to
 // the PHP API (avoids exposing the browser to the host's JS challenge).

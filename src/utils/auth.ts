@@ -3,11 +3,10 @@ import { AuthSession } from "../types";
 const DEFAULT_API_BASE = "/wamp-api";
 const CONFIGURED_API_BASE = (import.meta.env.VITE_WAMP_API_URL || DEFAULT_API_BASE).replace(/\/$/, "");
 const isConfiguredAbsolute = /^https?:\/\//i.test(CONFIGURED_API_BASE);
-// If a remote absolute API URL is configured, try the absolute URL first so
-// the browser can execute any JavaScript challenge (anti-bot) and set cookies
-// before falling back to the local proxy.
+// Prefer calling the local proxy first so the server can proxy requests to
+// the PHP API (avoids exposing the browser to the host's JS challenge).
 const API_BASES = isConfiguredAbsolute
-  ? [CONFIGURED_API_BASE, DEFAULT_API_BASE]
+  ? [DEFAULT_API_BASE, CONFIGURED_API_BASE]
   : CONFIGURED_API_BASE === DEFAULT_API_BASE
     ? [DEFAULT_API_BASE]
     : [CONFIGURED_API_BASE, DEFAULT_API_BASE];
@@ -30,14 +29,27 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
       const text = await response.text();
 
       if (!response.ok) {
-        try {
-          return JSON.parse(text) as T;
-        } catch {
-          throw new Error(`API request failed ${response.status}`);
-        }
+        let parsedError: unknown = text;
+        try { parsedError = JSON.parse(text); } catch {}
+        const snippet = text.slice(0, 2000);
+        console.error('API non-OK response', response.status, parsedError);
+        throw new Error(`API request failed ${response.status}: ${snippet}`);
       }
 
-      return JSON.parse(text) as T;
+      const trimmed = text.trim();
+      if (trimmed.startsWith('<')) {
+        const snippet = trimmed.slice(0, 2000);
+        console.error('API returned HTML, likely bot protection:', snippet);
+        throw new Error(`Received HTML from API (possible bot protection). Response snippet: ${snippet}`);
+      }
+
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        const snippet = text.slice(0, 2000);
+        console.error('API returned invalid JSON:', snippet);
+        throw new Error(`Invalid JSON response from API: ${snippet}`);
+      }
     } catch (err) {
       lastError = err;
       if (base === DEFAULT_API_BASE) break;

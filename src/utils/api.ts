@@ -3,11 +3,10 @@ import { CartItem } from "../types";
 const DEFAULT_API_BASE = "/wamp-api";
 const CONFIGURED_API_BASE = (import.meta.env.VITE_WAMP_API_URL || DEFAULT_API_BASE).replace(/\/$/, "");
 const isConfiguredAbsolute = /^https?:\/\//i.test(CONFIGURED_API_BASE);
-// If a remote absolute API URL is configured, try the absolute URL first so
-// the browser can execute any JavaScript challenge (anti-bot) and set cookies
-// before we fall back to the local proxy. Otherwise keep previous fallback.
+// Prefer calling the local proxy first so the server can proxy requests to
+// the PHP API (avoids exposing the browser to the host's JS challenge).
 const API_BASES = isConfiguredAbsolute
-  ? [CONFIGURED_API_BASE, DEFAULT_API_BASE]
+  ? [DEFAULT_API_BASE, CONFIGURED_API_BASE]
   : CONFIGURED_API_BASE === DEFAULT_API_BASE
     ? [DEFAULT_API_BASE]
     : [CONFIGURED_API_BASE, DEFAULT_API_BASE];

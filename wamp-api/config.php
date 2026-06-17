@@ -1,6 +1,16 @@
 <?php
 declare(strict_types=1);
 
+// Ensure PHP errors are not sent to the HTTP response (which would break JSON)
+// but are logged to a file for debugging on the server.
+ini_set('display_errors', '0');
+ini_set('display_startup_errors', '0');
+ini_set('log_errors', '1');
+error_reporting(E_ALL);
+if (!ini_get('error_log')) {
+    ini_set('error_log', __DIR__ . '/php-error.log');
+}
+
 // Check if a local/production configuration file exists to override credentials
 if (file_exists(__DIR__ . '/db_config.local.php')) {
     include_once __DIR__ . '/db_config.local.php';

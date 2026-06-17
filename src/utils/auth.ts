@@ -3,10 +3,11 @@ import { AuthSession } from "../types";
 const DEFAULT_API_BASE = "/wamp-api";
 const CONFIGURED_API_BASE = (import.meta.env.VITE_WAMP_API_URL || DEFAULT_API_BASE).replace(/\/$/, "");
 const isConfiguredAbsolute = /^https?:\/\//i.test(CONFIGURED_API_BASE);
-// Prefer the local proxy first when a remote API URL is configured to avoid
-// client-side TLS/CORS/network issues; fall back to the absolute URL if proxy fails.
+// If a remote absolute API URL is configured, try the absolute URL first so
+// the browser can execute any JavaScript challenge (anti-bot) and set cookies
+// before falling back to the local proxy.
 const API_BASES = isConfiguredAbsolute
-  ? [DEFAULT_API_BASE, CONFIGURED_API_BASE]
+  ? [CONFIGURED_API_BASE, DEFAULT_API_BASE]
   : CONFIGURED_API_BASE === DEFAULT_API_BASE
     ? [DEFAULT_API_BASE]
     : [CONFIGURED_API_BASE, DEFAULT_API_BASE];
@@ -115,6 +116,13 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
         console.error('API returned non-OK response:', response.status, parsedError);
         const snippet = text.slice(0, 2000);
         throw new Error(`API request failed ${response.status}: ${snippet}`);
+      }
+
+      const trimmed = text.trim();
+      if (trimmed.startsWith('<')) {
+        const snippet = trimmed.slice(0, 2000);
+        console.error('API returned HTML, likely a bot-protection page:', snippet);
+        throw new Error(`Received HTML from API (possible bot protection). Response snippet: ${snippet}`);
       }
 
       try {

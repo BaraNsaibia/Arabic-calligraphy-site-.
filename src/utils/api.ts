@@ -3,11 +3,11 @@ import { CartItem } from "../types";
 const DEFAULT_API_BASE = "/wamp-api";
 const CONFIGURED_API_BASE = (import.meta.env.VITE_WAMP_API_URL || DEFAULT_API_BASE).replace(/\/$/, "");
 const isConfiguredAbsolute = /^https?:\/\//i.test(CONFIGURED_API_BASE);
-// If a remote absolute API URL is configured, prefer calling the local proxy
-// (`/wamp-api`) first so the server can proxy requests (avoids browser TLS
-// or CORS/transport issues), then fall back to the absolute URL.
+// If a remote absolute API URL is configured, try the absolute URL first so
+// the browser can execute any JavaScript challenge (anti-bot) and set cookies
+// before we fall back to the local proxy. Otherwise keep previous fallback.
 const API_BASES = isConfiguredAbsolute
-  ? [DEFAULT_API_BASE, CONFIGURED_API_BASE]
+  ? [CONFIGURED_API_BASE, DEFAULT_API_BASE]
   : CONFIGURED_API_BASE === DEFAULT_API_BASE
     ? [DEFAULT_API_BASE]
     : [CONFIGURED_API_BASE, DEFAULT_API_BASE];
@@ -36,6 +36,15 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
           const snippet = text.slice(0, 2000);
           throw new Error(`API Error: ${response.status} - Invalid JSON response from API: ${snippet}`);
         }
+      }
+
+      // Detect HTML responses (common when a firewall/anti-bot returns a JS
+      // challenge page). Surface a clearer error.
+      const trimmed = text.trim();
+      if (trimmed.startsWith('<')) {
+        const snippet = trimmed.slice(0, 2000);
+        console.error('API returned HTML, likely a bot-protection page:', snippet);
+        throw new Error(`Received HTML from API (possible bot protection). Response snippet: ${snippet}`);
       }
 
       try {

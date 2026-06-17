@@ -39,8 +39,8 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
       const trimmed = text.trim();
       if (trimmed.startsWith('<')) {
         const snippet = trimmed.slice(0, 2000);
-        console.error('API returned HTML, likely bot protection:', snippet);
-        throw new Error(`Received HTML from API (possible bot protection). Response snippet: ${snippet}`);
+        console.error(`API returned HTML from ${base}, likely bot-protection page:`, snippet);
+        throw new Error(`Received HTML from API at ${base} (possible bot protection). Response snippet: ${snippet}`);
       }
 
       try {
@@ -52,7 +52,6 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
       }
     } catch (err) {
       lastError = err;
-      if (base === DEFAULT_API_BASE) break;
       continue;
     }
   }

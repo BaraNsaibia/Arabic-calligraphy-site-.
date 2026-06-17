@@ -3,9 +3,13 @@ import { AuthSession } from "../types";
 const DEFAULT_API_BASE = "/wamp-api";
 const CONFIGURED_API_BASE = (import.meta.env.VITE_WAMP_API_URL || DEFAULT_API_BASE).replace(/\/$/, "");
 const isConfiguredAbsolute = /^https?:\/\//i.test(CONFIGURED_API_BASE);
-const API_BASES = isConfiguredAbsolute || CONFIGURED_API_BASE === DEFAULT_API_BASE
-  ? [CONFIGURED_API_BASE]
-  : [CONFIGURED_API_BASE, DEFAULT_API_BASE];
+// Prefer the local proxy first when a remote API URL is configured to avoid
+// client-side TLS/CORS/network issues; fall back to the absolute URL if proxy fails.
+const API_BASES = isConfiguredAbsolute
+  ? [DEFAULT_API_BASE, CONFIGURED_API_BASE]
+  : CONFIGURED_API_BASE === DEFAULT_API_BASE
+    ? [DEFAULT_API_BASE]
+    : [CONFIGURED_API_BASE, DEFAULT_API_BASE];
 const TOKEN_KEY = "gallery_auth_token";
 
 interface StoredUser extends AuthSession {

@@ -3,12 +3,6 @@
 -- Import this file in phpMyAdmin (WampServer)
 -- ============================================================
 
-CREATE DATABASE IF NOT EXISTS nsaibia_gallery
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-USE nsaibia_gallery;
-
 -- ------------------------------------------------------------
 -- Users (sign in / sign up)
 -- ------------------------------------------------------------

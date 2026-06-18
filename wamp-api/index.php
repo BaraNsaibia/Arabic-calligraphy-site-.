@@ -5,22 +5,18 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/cors.php';
 
 $db_status = 'Disconnected';
-$db_error = null;
 
 try {
     db();
-    $db_status = 'Connected Successfully';
+    $db_status = 'Connected';
 } catch (PDOException $e) {
-    $db_status = 'Connection Failed';
-    $db_error = 'Database connection error';
+    $db_status = 'Error';
 }
 
 json_response([
     'ok' => true,
     'message' => 'Mohsen Nsaibia Gallery API',
     'database' => [
-        'name' => DB_NAME,
         'status' => $db_status,
-        'error' => $db_error,
     ],
 ]);

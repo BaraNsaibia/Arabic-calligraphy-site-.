@@ -107,15 +107,14 @@ try {
             json_response(['ok' => false, 'error' => 'unauthorized'], 403);
         }
 
-        $limit = min((int)($_GET['limit'] ?? 50), 500);
-        $offset = max((int)($_GET['offset'] ?? 0), 0);
-        
-        // Get total count
-        $countStmt = $pdo->query('SELECT COUNT(*) as total FROM orders');
-        $countRow = $countStmt->fetch(PDO::FETCH_ASSOC);
-        $total = (int)$countRow['total'];
-        
-        // Get paginated orders using prepared statement to prevent dynamic parameters concatenation
+        $limit = isset($_GET['limit']) ? max(1, min(100, (int)$_GET['limit'])) : 50;
+        $offset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
+
+        // Count total orders
+        $countStmt = $pdo->query('SELECT COUNT(*) FROM orders');
+        $total = (int)$countStmt->fetchColumn();
+
+        // Fetch orders with pagination
         $stmt = $pdo->prepare('
             SELECT 
                 o.id,
@@ -131,6 +130,7 @@ try {
                 o.payment_reference,
                 o.created_at,
                 o.user_id,
+                o.guest_token,
                 u.name AS client_name,
                 u.email AS client_email
             FROM orders o
@@ -138,12 +138,12 @@ try {
             ORDER BY o.created_at DESC
             LIMIT :limit OFFSET :offset
         ');
-        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
-
         $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Attach items to each order
         foreach ($orders as &$ord) {
             $itemStmt = $pdo->prepare('
                 SELECT
@@ -155,18 +155,8 @@ try {
                     (oi.unit_price * oi.quantity) AS subtotal,
                     a.title_ar AS product_title_ar,
                     a.title_en AS product_title_en,
-                    a.image AS image,
-                    o.order_number,
-                    o.created_at,
-                    o.customer_name,
-                    o.customer_email,
-                    o.customer_phone,
-                    o.shipping_address,
-                    u.name AS client_name,
-                    u.email AS client_email
+                    a.image AS image
                 FROM order_items oi
-                INNER JOIN orders o ON o.id = oi.order_id
-                LEFT JOIN users u ON u.id = o.user_id
                 LEFT JOIN artworks a ON a.id = oi.artwork_id
                 WHERE oi.order_id = :order_id
                 ORDER BY oi.id ASC
@@ -175,7 +165,7 @@ try {
             $ord['items'] = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
         }
         unset($ord);
-        
+
         json_response([
             'ok' => true,
             'orders' => $orders,

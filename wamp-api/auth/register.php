@@ -8,17 +8,32 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_response(['ok' => false, 'error' => 'method_not_allowed'], 405);
 }
 
+// Rate limiting: max 5 registration attempts per 10 minutes per IP
+if (check_rate_limit('register', 5, 600)) {
+    json_response(['ok' => false, 'error' => 'rate_limited', 'message' => 'Too many registration attempts. Please try again later.'], 429);
+}
+
 $body = read_json_body();
-$name = trim((string)($body['name'] ?? ''));
+$name = htmlspecialchars(strip_tags(trim((string)($body['name'] ?? ''))), ENT_QUOTES, 'UTF-8');
 $email = strtolower(trim((string)($body['email'] ?? '')));
 $password = (string)($body['password'] ?? '');
 
-if ($name === '' || $email === '' || strlen($password) < 6) {
-    json_response(['ok' => false, 'error' => 'invalid_input'], 400);
+if ($name === '' || $email === '' || strlen($password) < 8) {
+    json_response(['ok' => false, 'error' => 'invalid_input', 'message' => 'Password must be at least 8 characters.'], 400);
+}
+
+if (strlen($name) > 120) {
+    json_response(['ok' => false, 'error' => 'invalid_input', 'message' => 'Name is too long.'], 400);
 }
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     json_response(['ok' => false, 'error' => 'invalid_email_format'], 400);
+}
+
+// Reject trivially weak passwords
+$weakPasswords = ['password', '12345678', '123456789', 'qwerty123', 'admin123', 'password1'];
+if (in_array(strtolower($password), $weakPasswords, true)) {
+    json_response(['ok' => false, 'error' => 'weak_password', 'message' => 'Password is too common. Please choose a stronger password.'], 400);
 }
 
 try {

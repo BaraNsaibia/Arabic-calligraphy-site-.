@@ -49,11 +49,8 @@ header('X-Frame-Options: DENY');
 header('X-Content-Type-Options: nosniff');
 header('X-XSS-Protection: 1; mode=block');
 header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
-
-if (function_exists('opcache_invalidate')) {
-    opcache_invalidate(__DIR__ . '/auth/register.php', true);
-    opcache_invalidate(__DIR__ . '/auth/login.php', true);
-}
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header("Permissions-Policy: camera=(), microphone=(), geolocation=()");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
@@ -95,13 +92,14 @@ function get_bearer_token(): ?string
     
     if (empty($header) && function_exists('apache_request_headers')) {
         $requestHeaders = apache_request_headers();
-        $requestHeaders = array_combine(array_map('ucwords', array_keys($requestHeaders)), array_values($requestHeaders));
-        if (isset($requestHeaders['Authorization'])) {
-            $header = trim($requestHeaders['Authorization']);
-        } elseif (isset($requestHeaders['X-Authorization'])) {
-            $header = trim($requestHeaders['X-Authorization']);
-        } elseif (isset($requestHeaders['X-Auth-Token'])) {
-            $header = trim($requestHeaders['X-Auth-Token']);
+        // Lowercase all keys to make lookup case-insensitive
+        $requestHeaders = array_change_key_case($requestHeaders, CASE_LOWER);
+        if (isset($requestHeaders['authorization'])) {
+            $header = trim($requestHeaders['authorization']);
+        } elseif (isset($requestHeaders['x-authorization'])) {
+            $header = trim($requestHeaders['x-authorization']);
+        } elseif (isset($requestHeaders['x-auth-token'])) {
+            $header = trim($requestHeaders['x-auth-token']);
         }
     }
 
@@ -134,4 +132,58 @@ function current_user(PDO $pdo): ?array
     $user = $stmt->fetch();
 
     return $user ?: null;
+}
+
+/**
+ * Basic IP-based rate limiter using the filesystem.
+ * Returns true if the request should be blocked (rate exceeded).
+ */
+function check_rate_limit(string $action, int $maxAttempts = 10, int $windowSeconds = 300): bool
+{
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $key = md5($action . '_' . $ip);
+    $rateDir = sys_get_temp_dir() . '/nsaibia_rate_limits';
+    
+    if (!is_dir($rateDir)) {
+        @mkdir($rateDir, 0700, true);
+    }
+    
+    $file = $rateDir . '/' . $key . '.json';
+    
+    $data = ['attempts' => [], 'blocked_until' => 0];
+    if (file_exists($file)) {
+        $raw = @file_get_contents($file);
+        if ($raw) {
+            $parsed = json_decode($raw, true);
+            if (is_array($parsed)) {
+                $data = $parsed;
+            }
+        }
+    }
+    
+    $now = time();
+    
+    // Check if currently blocked
+    if (isset($data['blocked_until']) && $data['blocked_until'] > $now) {
+        return true;
+    }
+    
+    // Clean up old attempts outside the window
+    $data['attempts'] = array_filter($data['attempts'], function($ts) use ($now, $windowSeconds) {
+        return ($now - $ts) < $windowSeconds;
+    });
+    $data['attempts'] = array_values($data['attempts']);
+    
+    // Check if rate exceeded
+    if (count($data['attempts']) >= $maxAttempts) {
+        $data['blocked_until'] = $now + $windowSeconds;
+        @file_put_contents($file, json_encode($data), LOCK_EX);
+        return true;
+    }
+    
+    // Record this attempt
+    $data['attempts'][] = $now;
+    @file_put_contents($file, json_encode($data), LOCK_EX);
+    
+    return false;
 }

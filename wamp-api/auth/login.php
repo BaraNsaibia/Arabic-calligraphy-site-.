@@ -8,6 +8,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_response(['ok' => false, 'error' => 'method_not_allowed'], 405);
 }
 
+// Rate limiting: max 5 login attempts per 5 minutes per IP
+if (check_rate_limit('login', 5, 300)) {
+    json_response(['ok' => false, 'error' => 'rate_limited', 'message' => 'Too many login attempts. Please try again later.'], 429);
+}
+
 $body = read_json_body();
 $email = strtolower(trim((string)($body['email'] ?? '')));
 $password = (string)($body['password'] ?? '');

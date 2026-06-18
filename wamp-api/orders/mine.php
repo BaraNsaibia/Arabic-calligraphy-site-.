@@ -39,8 +39,17 @@ try {
     // Format the response to match the frontend expectations
     $formattedOrders = [];
     foreach ($orders as $o) {
-        // Fetch order items
-        $itemStmt = $pdo->prepare('SELECT * FROM order_items WHERE order_id = :order_id');
+        // Fetch order items and join artworks to get titles and images
+        $itemStmt = $pdo->prepare('
+            SELECT 
+                oi.*, 
+                a.title_ar AS product_title_ar, 
+                a.title_en AS product_title_en, 
+                a.image AS image
+            FROM order_items oi
+            LEFT JOIN artworks a ON a.id = oi.artwork_id
+            WHERE oi.order_id = :order_id
+        ');
         $itemStmt->execute(['order_id' => $o['id']]);
         $items = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
         
@@ -49,7 +58,10 @@ try {
                 'artworkId' => $item['artwork_id'],
                 'quantity' => (int)$item['quantity'],
                 'frameType' => $item['frame_type'],
-                'unitPrice' => (float)$item['unit_price']
+                'unitPrice' => (float)$item['unit_price'],
+                'titleAr' => $item['product_title_ar'] ?? $item['artwork_id'],
+                'titleEn' => $item['product_title_en'] ?? $item['artwork_id'],
+                'image' => $item['image'] ?? ''
             ];
         }, $items);
 
@@ -75,5 +87,6 @@ try {
         'orders' => $formattedOrders,
     ]);
 } catch (Throwable $e) {
-    json_response(['ok' => false, 'error' => 'server_error', 'message' => $e->getMessage()], 500);
+    error_log('Mine orders fetch error: ' . $e->getMessage());
+    json_response(['ok' => false, 'error' => 'server_error', 'message' => 'An unexpected server error occurred.'], 500);
 }

@@ -113,6 +113,7 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
   const token = getToken();
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
+    headers.set("X-Authorization", `Bearer ${token}`);
   }
 
   let lastError: unknown;

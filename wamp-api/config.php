@@ -48,14 +48,15 @@ function db(): PDO
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             ]);
         } catch (PDOException $e) {
-            // Provide a clear database error message
+            // Log database error internally
+            error_log('Database connection failed: ' . $e->getMessage());
+            
             header('Content-Type: application/json; charset=utf-8');
             http_response_code(500);
             echo json_encode([
                 'ok' => false,
                 'error' => 'database_connection_failed',
-                'message' => 'Database connection failed. Please check db_config.local.php settings.',
-                'details' => $e->getMessage()
+                'message' => 'Database connection failed. Please check server configuration.'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }

@@ -17,6 +17,10 @@ if ($name === '' || $email === '' || strlen($password) < 6) {
     json_response(['ok' => false, 'error' => 'invalid_input'], 400);
 }
 
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    json_response(['ok' => false, 'error' => 'invalid_email_format'], 400);
+}
+
 try {
     $pdo = db();
 
@@ -64,5 +68,6 @@ try {
         'token' => $token,
     ]);
 } catch (Throwable $err) {
-    json_response(['ok' => false, 'error' => 'server_error', 'message' => $err->getMessage()], 500);
+    error_log('Registration error: ' . $err->getMessage());
+    json_response(['ok' => false, 'error' => 'server_error', 'message' => 'An unexpected server error occurred.'], 500);
 }

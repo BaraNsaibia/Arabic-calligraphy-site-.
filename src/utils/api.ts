@@ -73,6 +73,7 @@ async function postJson<T>(path: string, body: unknown, auth = false): Promise<T
     const token = localStorage.getItem("gallery_auth_token");
     if (token) {
       headers.Authorization = `Bearer ${token}`;
+      headers["X-Authorization"] = `Bearer ${token}`;
     }
   }
 
@@ -146,6 +147,7 @@ export async function getOrderDetails(orderId: string | number): Promise<{ ok: b
     const token = localStorage.getItem("gallery_auth_token");
     if (token) {
       headers.Authorization = `Bearer ${token}`;
+      headers["X-Authorization"] = `Bearer ${token}`;
     }
     if (guestToken) {
       headers["X-Guest-Token"] = guestToken;
@@ -184,6 +186,7 @@ export async function getAllOrders(): Promise<{ ok: boolean; orders?: any[] }> {
     const headers: Record<string, string> = {};
     if (token) {
       headers.Authorization = `Bearer ${token}`;
+      headers["X-Authorization"] = `Bearer ${token}`;
     }
     return await requestJson<{ ok: boolean; orders?: any[] }>("/orders/index.php", {
       method: "GET",
@@ -204,6 +207,7 @@ export async function getMyOrders(): Promise<{ ok: boolean; orders?: any[] }> {
     const headers: Record<string, string> = {};
     if (token) {
       headers.Authorization = `Bearer ${token}`;
+      headers["X-Authorization"] = `Bearer ${token}`;
     }
     if (guestToken) {
       headers["X-Guest-Token"] = guestToken;

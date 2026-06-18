@@ -12,7 +12,7 @@ try {
     $db_status = 'Connected Successfully';
 } catch (PDOException $e) {
     $db_status = 'Connection Failed';
-    $db_error = $e->getMessage();
+    $db_error = 'Database connection error';
 }
 
 json_response([

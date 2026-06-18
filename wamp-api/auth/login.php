@@ -16,6 +16,10 @@ if ($email === '' || $password === '') {
     json_response(['ok' => false, 'error' => 'invalid_input'], 400);
 }
 
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    json_response(['ok' => false, 'error' => 'invalid_email_format'], 400);
+}
+
 try {
     $pdo = db();
     $stmt = $pdo->prepare('SELECT id, name, email, password_hash FROM users WHERE email = :email LIMIT 1');
@@ -38,5 +42,6 @@ try {
         'token' => $token,
     ]);
 } catch (Throwable $err) {
-    json_response(['ok' => false, 'error' => 'server_error', 'message' => $err->getMessage()], 500);
+    error_log('Login error: ' . $err->getMessage());
+    json_response(['ok' => false, 'error' => 'server_error', 'message' => 'An unexpected server error occurred.'], 500);
 }

@@ -1,9 +1,47 @@
 <?php
 declare(strict_types=1);
 
-header('Access-Control-Allow-Origin: *');
+// CORS Whitelisting
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$allowed = false;
+$allowed_origins = [
+    'https://bara.gamer.free',
+    'https://nsaibia.com',
+];
+
+if ($origin !== '') {
+    $parsed_url = parse_url($origin);
+    $host = $parsed_url['host'] ?? '';
+    
+    // Allow localhost & 127.0.0.1 for local dev
+    if ($host === 'localhost' || $host === '127.0.0.1') {
+        $allowed = true;
+    } 
+    // Allow Render preview/production domains
+    elseif (preg_match('/\.onrender\.com$/i', $host)) {
+        $allowed = true;
+    } 
+    // Check custom whitelist
+    else {
+        foreach ($allowed_origins as $allowed_origin) {
+            if (strcasecmp($origin, $allowed_origin) === 0) {
+                $allowed = true;
+                break;
+            }
+        }
+    }
+}
+
+if ($allowed) {
+    header('Access-Control-Allow-Origin: ' . $origin);
+    header('Access-Control-Allow-Credentials: true');
+} else {
+    // Default fallback to first production origin
+    header('Access-Control-Allow-Origin: https://bara.gamer.free');
+}
+
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Authorization, X-Guest-Token, X-Auth-Token');
 header('Content-Type: application/json; charset=utf-8');
 
 // Security Hardening Headers
@@ -42,14 +80,34 @@ function read_json_body(): array
 
 function get_bearer_token(): ?string
 {
+    // Try standard Authorization header
     $header = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+    
+    // Try custom X-Authorization header
+    if (empty($header)) {
+        $header = $_SERVER['HTTP_X_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_X_AUTHORIZATION'] ?? '';
+    }
+
+    // Try custom X-Auth-Token header
+    if (empty($header)) {
+        $header = $_SERVER['HTTP_X_AUTH_TOKEN'] ?? $_SERVER['REDIRECT_HTTP_X_AUTH_TOKEN'] ?? '';
+    }
     
     if (empty($header) && function_exists('apache_request_headers')) {
         $requestHeaders = apache_request_headers();
         $requestHeaders = array_combine(array_map('ucwords', array_keys($requestHeaders)), array_values($requestHeaders));
         if (isset($requestHeaders['Authorization'])) {
             $header = trim($requestHeaders['Authorization']);
+        } elseif (isset($requestHeaders['X-Authorization'])) {
+            $header = trim($requestHeaders['X-Authorization']);
+        } elseif (isset($requestHeaders['X-Auth-Token'])) {
+            $header = trim($requestHeaders['X-Auth-Token']);
         }
+    }
+
+    // Final fallback: query parameter
+    if (empty($header) && isset($_GET['token'])) {
+        $header = 'Bearer ' . trim($_GET['token']);
     }
     
     if (preg_match('/Bearer\s+(\S+)/i', $header, $matches)) {

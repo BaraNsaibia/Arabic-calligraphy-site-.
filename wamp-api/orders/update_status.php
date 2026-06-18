@@ -11,8 +11,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $pdo = db();
 $user = current_user($pdo);
 
-// Check if user is logged in and is admin (email: admin@nsaibia.com)
-if (!$user || strtolower(trim($user['email'])) !== 'admin@nsaibia.com') {
+// Check if user is logged in and is admin
+$adminEmail = defined('ADMIN_EMAIL') ? ADMIN_EMAIL : 'admin@nsaibia.com';
+if (!$user || strtolower(trim($user['email'])) !== strtolower(trim($adminEmail))) {
     json_response(['ok' => false, 'error' => 'unauthorized'], 403);
 }
 
@@ -58,5 +59,6 @@ try {
     
     json_response(['ok' => true, 'message' => 'Order status updated successfully']);
 } catch (Throwable $e) {
-    json_response(['ok' => false, 'error' => 'server_error', 'message' => $e->getMessage()], 500);
+    error_log('Order status update error: ' . $e->getMessage());
+    json_response(['ok' => false, 'error' => 'server_error', 'message' => 'An unexpected server error occurred.'], 500);
 }

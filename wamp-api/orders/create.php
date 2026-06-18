@@ -14,7 +14,16 @@ $body = read_json_body();
 $customerName = htmlspecialchars(strip_tags(trim((string)($body['customerName'] ?? ''))), ENT_QUOTES, 'UTF-8');
 $customerPhone = htmlspecialchars(strip_tags(trim((string)($body['customerPhone'] ?? ''))), ENT_QUOTES, 'UTF-8');
 $rawEmail = trim((string)($body['customerEmail'] ?? ''));
-$customerEmail = filter_var($rawEmail, FILTER_VALIDATE_EMAIL) ? strtolower($rawEmail) : '';
+
+// Validate Email Format strictly if provided
+$customerEmail = '';
+if ($rawEmail !== '') {
+    if (!filter_var($rawEmail, FILTER_VALIDATE_EMAIL)) {
+        json_response(['ok' => false, 'error' => 'invalid_email_format'], 400);
+    }
+    $customerEmail = strtolower($rawEmail);
+}
+
 $shippingAddress = htmlspecialchars(strip_tags(trim((string)($body['shippingAddress'] ?? ''))), ENT_QUOTES, 'UTF-8');
 $paymentMethod = htmlspecialchars(strip_tags(trim((string)($body['paymentMethod'] ?? ''))), ENT_QUOTES, 'UTF-8');
 $paymentReference = htmlspecialchars(strip_tags(trim((string)($body['paymentReference'] ?? ''))), ENT_QUOTES, 'UTF-8');
@@ -24,8 +33,14 @@ if ($guestToken === '') {
 }
 $items = $body['items'] ?? [];
 
+// Validate input fields are not empty
 if ($customerName === '' || $customerPhone === '' || $shippingAddress === '' || !is_array($items) || count($items) === 0) {
     json_response(['ok' => false, 'error' => 'invalid_input'], 400);
+}
+
+// Regex Phone Number Validation
+if (!preg_match('/^\+?[0-9\s\-]{8,20}$/', $customerPhone)) {
+    json_response(['ok' => false, 'error' => 'invalid_phone'], 400);
 }
 
 // Payment Validation
@@ -45,6 +60,9 @@ $userId = $user ? (int)$user['id'] : null;
 $total = 0.0;
 $normalizedItems = [];
 
+// Prepare artwork verification query to prevent price manipulation
+$artQuery = $pdo->prepare('SELECT price, is_active FROM artworks WHERE id = :id LIMIT 1');
+
 foreach ($items as $item) {
     $artworkId = (string)($item['artworkId'] ?? '');
     $quantity = max(1, (int)($item['quantity'] ?? 1));
@@ -57,6 +75,22 @@ foreach ($items as $item) {
 
     if (!in_array($frameType, ['classic_wood', 'museum_gold', 'obsidian_minimal'], true)) {
         json_response(['ok' => false, 'error' => 'invalid_frame'], 400);
+    }
+
+    // Integrity Check: Verify that the product exists and has matching price in DB
+    $artQuery->execute(['id' => $artworkId]);
+    $artwork = $artQuery->fetch();
+    if (!$artwork) {
+        json_response(['ok' => false, 'error' => 'artwork_not_found'], 400);
+    }
+
+    if (!(bool)$artwork['is_active']) {
+        json_response(['ok' => false, 'error' => 'artwork_inactive'], 400);
+    }
+
+    $realPrice = (float)$artwork['price'];
+    if (abs($realPrice - $unitPrice) > 0.01) {
+        json_response(['ok' => false, 'error' => 'price_mismatch'], 400);
     }
 
     $total += $unitPrice * $quantity;
@@ -127,5 +161,5 @@ try {
     }
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
     error_log('Order creation error: ' . $e->getMessage());
-    json_response(['ok' => false, 'error' => 'server_error', 'message' => $e->getMessage()], 500);
+    json_response(['ok' => false, 'error' => 'server_error', 'message' => 'An unexpected server error occurred.'], 500);
 }

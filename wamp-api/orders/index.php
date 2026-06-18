@@ -47,7 +47,8 @@ try {
 
         // Secure with admin or owner check
         $user = current_user($pdo);
-        $isAdmin = $user && strtolower(trim($user['email'])) === 'admin@nsaibia.com';
+        $adminEmail = defined('ADMIN_EMAIL') ? ADMIN_EMAIL : 'admin@nsaibia.com';
+        $isAdmin = $user && strtolower(trim($user['email'])) === strtolower(trim($adminEmail));
         $guestToken = $_GET['guest_token'] ?? $_SERVER['HTTP_X_GUEST_TOKEN'] ?? null;
 
         if (!$isAdmin) {
@@ -63,7 +64,7 @@ try {
             }
         }
         
-        // Get order items
+        // Get order items with artwork titles and images
         $itemStmt = $pdo->prepare('
             SELECT 
                 oi.id,
@@ -72,19 +73,22 @@ try {
                 oi.frame_type,
                 oi.unit_price,
                 (oi.unit_price * oi.quantity) AS subtotal,
+                a.title_ar AS product_title_ar,
+                a.title_en AS product_title_en,
+                a.image AS image,
                 o.order_number,
                 o.created_at,
                 o.customer_name,
                 o.customer_email,
                 o.customer_phone,
                 o.shipping_address,
-                o.total_amount,
                 o.user_id,
                 u.name AS client_name,
                 u.email AS client_email
             FROM order_items oi
             INNER JOIN orders o ON o.id = oi.order_id
             LEFT JOIN users u ON u.id = o.user_id
+            LEFT JOIN artworks a ON a.id = oi.artwork_id
             WHERE oi.order_id = :order_id
             ORDER BY oi.id ASC
         ');
@@ -98,7 +102,8 @@ try {
     } else {
         // Get all orders (paginated) - secure with admin check
         $user = current_user($pdo);
-        if (!$user || strtolower(trim($user['email'])) !== 'admin@nsaibia.com') {
+        $adminEmail = defined('ADMIN_EMAIL') ? ADMIN_EMAIL : 'admin@nsaibia.com';
+        if (!$user || strtolower(trim($user['email'])) !== strtolower(trim($adminEmail))) {
             json_response(['ok' => false, 'error' => 'unauthorized'], 403);
         }
 
@@ -110,8 +115,8 @@ try {
         $countRow = $countStmt->fetch(PDO::FETCH_ASSOC);
         $total = (int)$countRow['total'];
         
-        // Get paginated orders
-        $stmt = $pdo->query('
+        // Get paginated orders using prepared statement to prevent dynamic parameters concatenation
+        $stmt = $pdo->prepare('
             SELECT 
                 o.id,
                 o.order_number,
@@ -131,8 +136,11 @@ try {
             FROM orders o
             LEFT JOIN users u ON u.id = o.user_id
             ORDER BY o.created_at DESC
-            LIMIT ' . $limit . ' OFFSET ' . $offset . '
+            LIMIT :limit OFFSET :offset
         ');
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
 
         $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -145,6 +153,9 @@ try {
                     oi.frame_type,
                     oi.unit_price,
                     (oi.unit_price * oi.quantity) AS subtotal,
+                    a.title_ar AS product_title_ar,
+                    a.title_en AS product_title_en,
+                    a.image AS image,
                     o.order_number,
                     o.created_at,
                     o.customer_name,
@@ -156,6 +167,7 @@ try {
                 FROM order_items oi
                 INNER JOIN orders o ON o.id = oi.order_id
                 LEFT JOIN users u ON u.id = o.user_id
+                LEFT JOIN artworks a ON a.id = oi.artwork_id
                 WHERE oi.order_id = :order_id
                 ORDER BY oi.id ASC
             ');
@@ -176,6 +188,7 @@ try {
         ]);
     }
 } catch (Throwable $e) {
-    json_response(['ok' => false, 'error' => 'server_error', 'message' => $e->getMessage()], 500);
+    error_log('Orders fetch error: ' . $e->getMessage());
+    json_response(['ok' => false, 'error' => 'server_error', 'message' => 'An unexpected server error occurred.'], 500);
 }
 ?>
